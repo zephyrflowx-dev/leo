@@ -1,0 +1,40 @@
+name: Build Leo APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Leo ZIP
+        run: |
+          mkdir -p build-src
+          unzip -q Leo-v1.3-Android.zip -d build-src
+          PROJECT_DIR=$(find build-src -name settings.gradle.kts -print -quit | xargs dirname)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Leo APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle :app:assembleDebug
+
+      - name: Upload Leo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Leo-APK
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
