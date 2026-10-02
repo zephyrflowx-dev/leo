@@ -1,1 +1,26 @@
+name: Build Leo APK
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract Leo project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p build-src
+
+          ZIP_FILE="$(find . -maxdepth 1 -type f -name 'Leo-v*.zip' -print -quit)"
+
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Using Leo ZIP: $ZIP_FILE"
+            unzip -q "$ZIP_FILE" -d build-src
+          elif [ -f "settings.gradle
