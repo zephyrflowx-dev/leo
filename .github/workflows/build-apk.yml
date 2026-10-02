@@ -17,10 +17,9 @@ jobs:
       - name: Extract Leo ZIP
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p build-src
-
-          unzip -q Leo-v3.4.0-Android-FIXED.zip -d build-src
-
+          unzip -q "Leo-v3.4.1-Android-FIXED.zip" -d build-src
           echo "Leo ZIP extracted successfully."
 
       - name: Set up Java 17
@@ -43,12 +42,12 @@ jobs:
         shell: bash
         working-directory: build-src
         run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          set -euo pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload Leo APK
         uses: actions/upload-artifact@v4
         with:
-          name: Leo-APK
+          name: Leo-APK-v3.4.1
           path: build-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
