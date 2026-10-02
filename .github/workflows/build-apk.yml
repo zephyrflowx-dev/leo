@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build-src
-          unzip -q "Leo-v3.5.0-Android-FIXED.zip" -d build-src
+          unzip -q "Leo-v4.0.0-Android-FIXED.zip" -d build-src
           echo "Leo ZIP extracted successfully."
 
       - name: Set up Java 17
