@@ -14,7 +14,7 @@ jobs:
       - name: Extract Leo ZIP
         run: |
           mkdir -p build-src
-          unzip -q Leo-v2.6.3-Android-FIXED.zip -d build-src
+          unzip -q Leo v3.3.0 — Voice-First Android ZIP -d build-src
           PROJECT_DIR=$(find build-src -name settings.gradle.kts -print -quit | xargs dirname)
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
