@@ -3,6 +3,9 @@ name: Build Leo APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -11,16 +14,79 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract Leo project
+      - name: Locate and extract Leo project
         shell: bash
         run: |
           set -euo pipefail
 
           mkdir -p build-src
 
-          ZIP_FILE="$(find . -maxdepth 1 -type f -name 'Leo-v*.zip' -print -quit)"
+          ZIP_FILE=""
 
-          if [ -n "$ZIP_FILE" ]; then
+          while IFS= read -r file; do
+            ZIP_FILE="$file"
+            break
+          done < <(find . -maxdepth 1 -type f -name 'Leo-v*.zip' -print)
+
+          if [[ -n "$ZIP_FILE" ]]; then
             echo "Using Leo ZIP: $ZIP_FILE"
             unzip -q "$ZIP_FILE" -d build-src
-          elif [ -f "settings.gradle
+
+          elif [[ -f "./settings.gradle.kts" ]]; then
+            echo "Leo project already exists in repository root."
+            cp -a . build-src/
+
+          else
+            echo "ERROR: No Leo ZIP or Gradle project found."
+            find . -maxdepth 2 -type f -print
+            exit 1
+          fi
+
+          PROJECT_DIR=""
+
+          while IFS= read -r file; do
+            PROJECT_DIR="$(dirname "$file")"
+            break
+          done < <(
+            find build-src \
+              -type f \
+              -name 'settings.gradle.kts' \
+              -print
+          )
+
+          if [[ -z "$PROJECT_DIR" ]]; then
+            echo "ERROR: settings.gradle.kts was not found."
+            find build-src -maxdepth 5 -type f -print
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Leo project directory: $PROJECT_DIR"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Leo debug APK
+        shell: bash
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Leo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Leo-APK-v3.3.0
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
