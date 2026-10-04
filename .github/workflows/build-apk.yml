@@ -1,27 +1,63 @@
 name: Build Leo APK
+
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@12.3.4 --activate
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Create build environment
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          printf 'VITE_GROQ_API_KEY=%s\n' "$GROQ_API_KEY" > .env.production
+          printf 'VITE_GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env.production
+
+      - name: Build web app
+        run: pnpm build
+
+      - name: Add Android platform
+        run: pnpm exec cap add android
+
+      - name: Sync Capacitor
+        run: pnpm exec cap sync android
+
+      - name: Apply Leo icon
+        run: ./scripts/prepare-android-assets.sh
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+          java-version: '21'
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Leo APK
+        uses: actions/upload-artifact@v4
         with:
-          gradle-version: '8.7'
-      - name: Build
-        run: |
-          if [ -f leo-app.zip ]; then mkdir -p build-src && unzip -oq leo-app.zip -d build-src && cd build-src; fi
-          gradle assembleDebug --stacktrace
-          mkdir -p "$GITHUB_WORKSPACE/out"
-          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/out/Leo.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Leo-APK
-          path: out/Leo.apk
+          name: Leo-v5.0-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
