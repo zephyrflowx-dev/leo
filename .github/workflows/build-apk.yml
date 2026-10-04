@@ -23,45 +23,52 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@12.3.4 --activate
+          pnpm --version
+          node --version
 
       - name: Extract Leo project
         shell: bash
         run: |
-          ZIP_FILE="$(find . -maxdepth 2 -type f -name '*.zip' | head -1)"
+          ZIP_FILE="$(find . -maxdepth 2 -type f -name 'Leo-v5.0-Standalone-Android.zip' | head -1)"
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Leo ZIP file not found."
+            echo "ERROR: Leo-v5.0-Standalone-Android.zip not found."
+            find . -maxdepth 3 -type f | sort
             exit 1
           fi
 
-          echo "Found: $ZIP_FILE"
+          echo "Found ZIP: $ZIP_FILE"
 
+          rm -rf extracted
           mkdir -p extracted
+
           unzip -q "$ZIP_FILE" -d extracted
 
-          echo "Extracted files:"
+          echo "ZIP extracted successfully."
           find extracted -maxdepth 3 -type f | sort | head -300
 
-      - name: Find project directory
+      - name: Find Leo project
         shell: bash
         run: |
           PACKAGE="$(find extracted -type f -name package.json | head -1)"
 
           if [ -z "$PACKAGE" ]; then
             echo "ERROR: package.json was not found inside the ZIP."
-            echo "ZIP contents:"
             find extracted -type f | sort
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$PACKAGE")"
 
-          echo "Leo project found at: $PROJECT_DIR"
+          echo "Leo project directory:"
+          echo "$PROJECT_DIR"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: pnpm install --no-frozen-lockfile
+        run: |
+          pnpm install --no-frozen-lockfile --allow-build=esbuild
 
       - name: Create environment
         working-directory: ${{ env.PROJECT_DIR }}
@@ -74,15 +81,18 @@ jobs:
 
       - name: Build Leo web app
         working-directory: ${{ env.PROJECT_DIR }}
-        run: pnpm build
+        run: |
+          pnpm build
 
-      - name: Add Android platform
+      - name: Add Capacitor Android
         working-directory: ${{ env.PROJECT_DIR }}
-        run: pnpm exec cap add android
+        run: |
+          pnpm exec cap add android
 
       - name: Sync Capacitor
         working-directory: ${{ env.PROJECT_DIR }}
-        run: pnpm exec cap sync android
+        run: |
+          pnpm exec cap sync android
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -92,7 +102,9 @@ jobs:
 
       - name: Build Leo APK
         working-directory: ${{ env.PROJECT_DIR }}/android
-        run: ./gradlew assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload Leo APK
         uses: actions/upload-artifact@v4
@@ -100,3 +112,4 @@ jobs:
           name: Leo-v5.0-debug
           path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+        
