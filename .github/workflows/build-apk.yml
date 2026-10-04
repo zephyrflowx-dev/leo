@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -24,27 +24,40 @@ jobs:
           corepack enable
           corepack prepare pnpm@12.3.4 --activate
 
-      - name: Find Leo project
+      - name: Extract Leo project
         shell: bash
         run: |
-          echo "Repository contents:"
-          find . -maxdepth 3 -type f | sort | head -300
+          ZIP_FILE="$(find . -maxdepth 2 -type f -name '*.zip' | head -1)"
 
-          PROJECT_DIR="$(dirname "$(find . -type f -name package.json -not -path '*/node_modules/*' | head -1)")"
-
-          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
-            PROJECT_DIR="."
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: Leo ZIP file not found."
+            exit 1
           fi
 
-          echo "Leo project directory: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found: $ZIP_FILE"
 
-      - name: Show project files
+          mkdir -p extracted
+          unzip -q "$ZIP_FILE" -d extracted
+
+          echo "Extracted files:"
+          find extracted -maxdepth 3 -type f | sort | head -300
+
+      - name: Find project directory
+        shell: bash
         run: |
-          echo "Using project:"
-          pwd
-          echo "PROJECT_DIR=$PROJECT_DIR"
-          find "$PROJECT_DIR" -maxdepth 2 -type f | sort | head -300
+          PACKAGE="$(find extracted -type f -name package.json | head -1)"
+
+          if [ -z "$PACKAGE" ]; then
+            echo "ERROR: package.json was not found inside the ZIP."
+            echo "ZIP contents:"
+            find extracted -type f | sort
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PACKAGE")"
+
+          echo "Leo project found at: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
@@ -56,14 +69,14 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "GROQ_API_KEY=$GROQ_API_KEY" > .env.production
-          echo "GOOGLE_GENERATIVE_AI_API_KEY=$GEMINI_API_KEY" >> .env.production
+          printf 'GROQ_API_KEY=%s\n' "$GROQ_API_KEY" > .env.production
+          printf 'GOOGLE_GENERATIVE_AI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env.production
 
-      - name: Build Leo
+      - name: Build Leo web app
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm build
 
-      - name: Add Capacitor Android
+      - name: Add Android platform
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm exec cap add android
 
@@ -77,7 +90,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Build APK
+      - name: Build Leo APK
         working-directory: ${{ env.PROJECT_DIR }}/android
         run: ./gradlew assembleDebug
 
