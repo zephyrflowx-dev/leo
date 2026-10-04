@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PROJECT_DIR: Leo-Standalone-v5.0
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,12 +23,16 @@ jobs:
           node-version: 22
 
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@12.3.4 --activate
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.3.4 --activate
 
       - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Create build environment
+        working-directory: ${{ env.PROJECT_DIR }}
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -34,16 +41,22 @@ jobs:
           printf 'VITE_GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env.production
 
       - name: Build web app
+        working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm build
 
       - name: Add Android platform
+        working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm exec cap add android
 
       - name: Sync Capacitor
+        working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm exec cap sync android
 
       - name: Apply Leo icon
-        run: ./scripts/prepare-android-assets.sh
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x scripts/prepare-android-assets.sh
+          ./scripts/prepare-android-assets.sh
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -52,12 +65,12 @@ jobs:
           java-version: '21'
 
       - name: Build debug APK
-        working-directory: android
+        working-directory: ${{ env.PROJECT_DIR }}/android
         run: ./gradlew assembleDebug
 
       - name: Upload Leo APK
         uses: actions/upload-artifact@v4
         with:
           name: Leo-v5.0-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: Leo-Standalone-v5.0/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
