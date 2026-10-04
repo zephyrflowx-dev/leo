@@ -6,9 +6,6 @@ on:
 permissions:
   contents: read
 
-env:
-  PROJECT_DIR: Leo-Standalone-v5.0
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,24 +24,46 @@ jobs:
           corepack enable
           corepack prepare pnpm@12.3.4 --activate
 
+      - name: Find Leo project
+        shell: bash
+        run: |
+          echo "Repository contents:"
+          find . -maxdepth 3 -type f | sort | head -300
+
+          PROJECT_DIR="$(dirname "$(find . -type f -name package.json -not -path '*/node_modules/*' | head -1)")"
+
+          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
+            PROJECT_DIR="."
+          fi
+
+          echo "Leo project directory: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Show project files
+        run: |
+          echo "Using project:"
+          pwd
+          echo "PROJECT_DIR=$PROJECT_DIR"
+          find "$PROJECT_DIR" -maxdepth 2 -type f | sort | head -300
+
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm install --no-frozen-lockfile
 
-      - name: Create build environment
+      - name: Create environment
         working-directory: ${{ env.PROJECT_DIR }}
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          printf 'VITE_GROQ_API_KEY=%s\n' "$GROQ_API_KEY" > .env.production
-          printf 'VITE_GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env.production
+          echo "GROQ_API_KEY=$GROQ_API_KEY" > .env.production
+          echo "GOOGLE_GENERATIVE_AI_API_KEY=$GEMINI_API_KEY" >> .env.production
 
-      - name: Build web app
+      - name: Build Leo
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm build
 
-      - name: Add Android platform
+      - name: Add Capacitor Android
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm exec cap add android
 
@@ -52,19 +71,13 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: pnpm exec cap sync android
 
-      - name: Apply Leo icon
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          chmod +x scripts/prepare-android-assets.sh
-          ./scripts/prepare-android-assets.sh
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Build debug APK
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}/android
         run: ./gradlew assembleDebug
 
@@ -72,5 +85,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Leo-v5.0-debug
-          path: Leo-Standalone-v5.0/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
