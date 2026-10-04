@@ -3,9 +3,8 @@ name: Build Leo APK
 on:
   workflow_dispatch:
   push:
-    paths:
-      - "leo-source.zip"
-      - ".github/workflows/build-apk.yml"
+    branches:
+      - main
 
 jobs:
   build:
@@ -18,45 +17,50 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract Leo source ZIP
+      - name: Find uploaded Leo ZIP
+        shell: bash
         run: |
-          rm -rf build-src
-          mkdir -p build-src
-          unzip -q leo-source.zip -d build-src
+          set -e
 
-      - name: Check extracted project
+          echo "Files in repository:"
+          find . -maxdepth 3 -type f -print
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found in repository."
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP_FILE"
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+
+      - name: Extract repository ZIP
+        shell: bash
         run: |
-          echo "Extracted files:"
-          find build-src -maxdepth 3 -type f | sort
-          echo "Checking Gradle project..."
-          test -f build-src/settings.gradle.kts
-          test -f build-src/build.gradle.kts
-          test -f build-src/app/build.gradle.kts
+          set -e
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
+          rm -rf outer-src
+          mkdir -p outer-src
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "8.7"
+          unzip -q "$ZIP_FILE" -d outer-src
 
-      - name: Build Leo APK
-        working-directory: build-src
+          echo "Outer ZIP contents:"
+          find outer-src -maxdepth 4 -type f -print
+
+      - name: Find Leo source ZIP
+        shell: bash
         run: |
-          gradle :app:assembleDebug --no-daemon
+          set -e
 
-      - name: Prepare Leo.apk
-        run: |
-          cp build-src/app/build/outputs/apk/debug/app-debug.apk Leo.apk
-          ls -lh Leo.apk
+          INNER_ZIP=$(find outer-src -type f -iname "leo-source.zip" | head -n 1)
 
-      - name: Upload Leo APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Leo-APK
-          path: Leo.apk
-          
+          if [ -z "$INNER_ZIP" ]; then
+            echo "leo-source.zip was not found."
+            echo "ZIP files found:"
+            find outer-src -type f -iname "*.zip" -print
+            exit 1
+          fi
+
+          echo "Found Leo source: $INNER_ZIP"
+          echo "INNER
