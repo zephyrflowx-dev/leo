@@ -18,18 +18,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
       - name: Extract Leo source ZIP
         run: |
           rm -rf build-src
           mkdir -p build-src
           unzip -q leo-source.zip -d build-src
+
+      - name: Check extracted project
+        run: |
+          echo "Extracted files:"
+          find build-src -maxdepth 3 -type f | sort
+          echo "Checking Gradle project..."
+          test -f build-src/settings.gradle.kts
+          test -f build-src/build.gradle.kts
+          test -f build-src/app/build.gradle.kts
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -44,9 +52,11 @@ jobs:
       - name: Prepare Leo.apk
         run: |
           cp build-src/app/build/outputs/apk/debug/app-debug.apk Leo.apk
+          ls -lh Leo.apk
 
       - name: Upload Leo APK
         uses: actions/upload-artifact@v4
         with:
           name: Leo-APK
           path: Leo.apk
+          
